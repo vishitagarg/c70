@@ -23,6 +23,6 @@ const styles = StyleSheet.create({
     },
     text:{
         color:"black",
-        fontSize:"30",
+        fontSize:30,
     }
 })
