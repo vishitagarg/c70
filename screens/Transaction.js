@@ -1,8 +1,9 @@
 import React, { Component } from 'react';
-import { Text, View, StyleSheet, TouchableOpacity,TextInput,Image , ImageBackground
- } from 'react-native';
+import { Text, View, StyleSheet, TouchableOpacity,TextInput,Image , ImageBackground,
+KeyboardAvoidingView,ToastAndroid } from 'react-native';
 import * as Permissions from "expo-permissions";
 import { BarCodeScanner } from 'expo-barcode-scanner';
+import db from "../config";
 
 const bgImage=require("../assets/background2.png");
 const appIcon=require("../assets/appIcon.png");
@@ -48,6 +49,110 @@ export default class TransactionScreen extends Component {
     }
     
   }
+
+  handleTransaction=async()=> {
+    var {bookId,studentId}=this.state;
+    await this.getBookDetails(bookId);
+    await this.getStudentDetails(studentId)
+    db.collection("books")
+    .doc(bookId)
+    .get()
+    .then(doc=>{
+      console.log(doc.data())
+      var book = doc.data();
+      if(book.is_book_available){
+        var {bookName,studentName}=this.state;
+        this.initiateBookIssue(bookId,studentId,studentName,bookName);
+        ToastAndroid.show("Book issued to student",ToastAndroid.SHORT)
+      }
+      else{
+        var {bookName,studentName}=this.state;
+        this.initiateBookReturn(bookId,studentId,studentName,bookName);
+        ToastAndroid.show("book returned to the library",ToastAndroid.SHORT)
+      }
+    });
+  }
+
+  getBookDetails=bookId=>{
+    bookId=bookId.trim();
+    db.collection("books")
+      .where("book_id","==",bookId)
+      .get()
+      .then(snapshot=>{
+        snapshot.docs.map(doc=>{
+          this.setState({
+            bookName:doc.data().book_details.book_name
+          })
+        })
+      })
+    
+  }
+
+  getStudentDetails=studentId=>{
+    studentId=studentId.trim();
+    db.collection("students")
+    .where("student_id","==",studenrid)
+    .get()
+    .then(snapshot=>{
+      snapshot.docs.map(doc=>{
+        this.setState({
+          studentName:doc.data().student_details.student_name
+        })
+      })
+    })  
+  }
+  initiateBookIssue=async(bookId,studentId,bookName,studentName)=>{
+    db.collection("transactions").add({
+      student_id:studentId,
+      student_name: studentName,
+      book_id: bookId,
+      book_name: bookName,
+      date:firebase.firestore.Timestamp.now().toDate(),
+      transaction_type:"issue"
+    });
+
+    db.collection("books")
+    .doc(bookId)
+    .update({is_book_available: false });
+
+    db.collection("students")
+      .doc(studentId)
+      .update({
+      number_of_books_issued: firebase.firestore.FieldValue.increment(1)
+      })
+
+      this.setState({
+        bookId: "",
+        studentId: ""
+      });
+  };
+
+  initiateBookReturn=async(bookId,studentId,bookName,studentName)=>{ 
+    db.collection("transactions").add({
+      student_id:studentId,
+      student_name: studentName,
+      book_id: bookId,
+      book_name: bookName,
+      date:firebase.firestore.Timestamp.now().toDate(),
+      transaction_type:"return"
+    });
+
+    db.collection("books")
+    .doc(bookId)
+    .update({is_book_available: true });
+
+    db.collection("students")
+      .doc(studentId)
+      .update({
+      number_of_books_issued: firebase.firestore.FieldValue.increment(-1)
+      })
+
+      this.setState({
+        bookId: "",
+        studentId: ""
+      });
+  };
+
   render() {
     const {domState,scanned,bookId,studentId} = this.state;
     if(domState!=="normal"){
@@ -58,7 +163,7 @@ export default class TransactionScreen extends Component {
       )
     }
     return (
-      <View style={styles.container}>
+      <KeyboardAvoidingView behavior="padding" style={styles.container}>
         <ImageBackground source= {bgImage} style = {styles.bgImage}>
         <View style={styles.upperContainer}>
         <Image  source= {appIcon} style = {styles.appIcon}/>
@@ -72,6 +177,9 @@ export default class TransactionScreen extends Component {
         placeholder={"Book Id"}
         placeholderTextColor={"#FFFFFF"}
         value={bookId}
+        onChangeText={
+          text=>this.setState({bookId:text})
+        }
         />
 
         <TouchableOpacity style = {styles.scanButton}
@@ -88,6 +196,9 @@ export default class TransactionScreen extends Component {
         placeholder = {"student Id"}
         placeholderTextColor={"#FFFFFF"}
         value='studentId'
+        onChangeText={
+          text=>this.setState({studentId:text})
+        }
         />
 
         <TouchableOpacity style = {styles.scanButton}
@@ -98,11 +209,17 @@ export default class TransactionScreen extends Component {
 
         </TouchableOpacity>
         </View>
-
+        <TouchableOpacity 
+        style= {[styles.button,{marginTop:25}]}
+        onPress={this.handleTransaction}>
+        <Text style= {styles.buttonText}>
+          submit 
+        </Text>
+        </TouchableOpacity>
           
         </View>
         </ImageBackground>
-      </View>
+      </KeyboardAvoidingView>
     )
   }
 }
@@ -121,7 +238,7 @@ const styles = StyleSheet.create({
     upperContainer:{
       flex:0.5,
       justifyContent:"center",
-      alignItems:"cemter",
+      alignItems:"center",
 
     },
      appIcon:{
@@ -146,12 +263,13 @@ const styles = StyleSheet.create({
       height:55,
       justifyContent:"center",
       alignItems:"center",
-      backgroundColor:"red",
+      backgroundColor:"#F48D20",
       borderRadius:15,
     },
     buttonText:{
-      fontSize:20,
+      fontSize:24,
       color:"white",
+      fontFamily:"Rajdhani_600SemiBold",
     },
     lowerContainer:{
       flex:0.5,
